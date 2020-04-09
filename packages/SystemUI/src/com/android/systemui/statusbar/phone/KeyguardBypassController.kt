@@ -65,6 +65,8 @@ open class KeyguardBypassController : Dumpable {
         get() = field && mKeyguardStateController.isFaceAuthEnabled
         private set
 
+    var bypassEnabledBiometric: Boolean = false
+
     var bouncerShowing: Boolean = false
     var launchingAffordance: Boolean = false
     var qSExpanded = false
