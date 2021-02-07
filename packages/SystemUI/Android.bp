@@ -78,6 +78,7 @@ android_library {
         "vendor.lineage.powershare-V1.0-java",
         "tensorflowlite_java",
         "monetcompat",
+        "faceunlock_framework",
     ],
     manifest: "AndroidManifest.xml",
 
