@@ -250,4 +250,7 @@
     <!-- Sensors QS tile -->
     <string name="sensor_privacy_mode_tile">Sensors</string>
 
+     <!-- Biometric Dialog - Use Face -->
+    <string name="biometric_dialog_button_use_face">Use Face</string>
+
 </resources>
