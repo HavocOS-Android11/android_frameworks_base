@@ -341,4 +341,7 @@
     <!-- Whether to enable performance tuning in Gaming mode -->
     <bool name="config_enableGamingPerformanceTuning">false</bool>
 
+    <!-- Device model (Build.MODEL) to spoof for netflix, if not empty -->
+    <string name="config_netflixSpoofModel" translatable="false"></string>
+
 </resources>
