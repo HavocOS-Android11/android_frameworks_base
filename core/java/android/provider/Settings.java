@@ -10828,12 +10828,6 @@ public final class Settings {
         public static final String VOLUME_LINK_NOTIFICATION = "volume_link_notification";
 
         /**
-         * Whether face unlock is allowed only on security view.
-         * @hide
-         */
-        public static final String FACE_UNLOCK_ALWAYS_REQUIRE_SWIPE = "face_unlock_always_require_swipe";
-
-        /**
          * Select from different navigation bar layouts
          * @hide
          */

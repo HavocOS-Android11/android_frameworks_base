@@ -292,8 +292,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     private final Executor mBackgroundExecutor;
 
     private final boolean mFingerprintWakeAndUnlock;
-    private final boolean mFaceAuthOnSecurityView;
-    private boolean mBouncerFullyShown;
 
     /**
      * Short delay before restarting fingerprint authentication after a successful try. This should
@@ -1010,9 +1008,9 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         final DevicePolicyManager dpm =
                 (DevicePolicyManager) mContext.getSystemService(Context.DEVICE_POLICY_SERVICE);
         // TODO(b/140035044)
-        return dpm != null && (dpm.getKeyguardDisabledFeatures(null, userId)
+        return whitelistIpcs(() -> dpm != null && (dpm.getKeyguardDisabledFeatures(null, userId)
                 & DevicePolicyManager.KEYGUARD_DISABLE_FACE) != 0
-                || isSimPinSecure();
+                || isSimPinSecure());
     }
 
 
@@ -1605,8 +1603,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         mStrongAuthTracker = new StrongAuthTracker(context, this::notifyStrongAuthStateChanged);
         mFingerprintWakeAndUnlock = mContext.getResources().getBoolean(
                 com.android.systemui.R.bool.config_fingerprintWakeAndUnlock);
-        mFaceAuthOnSecurityView = mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_faceAuthOnSecurityView);
         mBackgroundExecutor = backgroundExecutor;
         mBroadcastDispatcher = broadcastDispatcher;
         mRingerModeTracker = ringerModeTracker;
@@ -2013,9 +2009,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                 && !statusBarShadeLocked;
         final int user = getCurrentUser();
         final int strongAuth = mStrongAuthTracker.getStrongAuthForUser(user);
-        final boolean isLockOutOrLockDown =
-                containsFlag(strongAuth, STRONG_AUTH_REQUIRED_AFTER_LOCKOUT)
-                        || containsFlag(strongAuth, STRONG_AUTH_REQUIRED_AFTER_DPM_LOCK_NOW)
+        final boolean isLockDown =
+                containsFlag(strongAuth, STRONG_AUTH_REQUIRED_AFTER_DPM_LOCK_NOW)
                         || containsFlag(strongAuth, STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN);
         final boolean isEncryptedOrTimedOut =
                 containsFlag(strongAuth, STRONG_AUTH_REQUIRED_AFTER_BOOT)
@@ -2029,13 +2024,13 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         boolean becauseCannotSkipBouncer = !getUserCanSkipBouncer(user) || canBypass;
 
         // Scan even when encrypted or timeout to show a preemptive bouncer when bypassing.
-        // Lockout/lockdown modes shouldn't scan, since they are more explicit.
+        // Lock-down mode shouldn't scan, since it is more explicit.
         boolean strongAuthAllowsScanning = (!isEncryptedOrTimedOut || canBypass && !mBouncer)
-                && !isLockOutOrLockDown;
+                && !isLockDown;
 
         // Only listen if this KeyguardUpdateMonitor belongs to the primary user. There is an
         // instance of KeyguardUpdateMonitor for each user but KeyguardUpdateMonitor is user-aware.
-        boolean shouldListen =
+        final boolean shouldListen =
                 (mBouncer || mAuthInterruptActive || awakeKeyguard
                         || shouldListenForFaceAssistant())
                 && !mSwitchingUser && !isFaceDisabled(user) && becauseCannotSkipBouncer
@@ -2043,10 +2038,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                 && strongAuthAllowsScanning && mIsPrimaryUser
                 && !mSecureCameraLaunched
                 && !mIsDeviceInPocket;
-
-        if (shouldListen && isFaceAuthOnlyOnSecurityView() && !mBouncerFullyShown){
-            shouldListen = false;
-        }
 
         // Aggregate relevant fields for debug logging.
         if (DEBUG_FACE || DEBUG_SPEW) {
@@ -2071,15 +2062,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         }
 
         return shouldListen;
-    }
-
-    public void onKeyguardBouncerFullyShown(boolean fullyShow) {
-        if (mBouncerFullyShown != fullyShow){
-            mBouncerFullyShown = fullyShow;
-            if (isFaceAuthOnlyOnSecurityView()){
-                updateFaceListeningState();
-            }
-        }
     }
 
     private void maybeLogFaceListenerModelData(KeyguardFaceListenModel model) {
@@ -2227,11 +2209,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         if (mFaceRunningState == BIOMETRIC_STATE_CANCELLING_RESTARTING) {
             setFaceRunningState(BIOMETRIC_STATE_CANCELLING);
         }
-    }
-
-    private boolean isFaceAuthOnlyOnSecurityView() {
-        return Settings.Secure.getInt(mContext.getContentResolver(),
-                Settings.Secure.FACE_UNLOCK_ALWAYS_REQUIRE_SWIPE, mFaceAuthOnSecurityView ? 1 : 0) != 0;
     }
 
     private boolean isDeviceProvisionedInSettingsDb() {
@@ -2561,7 +2538,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         Assert.isMainThread();
         Log.d(TAG, "onKeyguardVisibilityChanged(" + showing + ")");
         mKeyguardIsVisible = showing;
-        mBouncerFullyShown = false;
 
         if (showing) {
             mSecureCameraLaunched = false;
@@ -2581,7 +2557,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      */
     private void handleKeyguardReset() {
         if (DEBUG) Log.d(TAG, "handleKeyguardReset");
-        mBouncerFullyShown = false;
         updateBiometricListeningState();
         mNeedsSlowUnlockTransition = resolveNeedsSlowUnlockTransition();
     }
@@ -2639,7 +2614,6 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      * Handle {@link #MSG_REPORT_EMERGENCY_CALL_ACTION}
      */
     private void handleReportEmergencyCallAction() {
-        mBouncerFullyShown = false;
         Assert.isMainThread();
         for (int i = 0; i < mCallbacks.size(); i++) {
             KeyguardUpdateMonitorCallback cb = mCallbacks.get(i).get();
